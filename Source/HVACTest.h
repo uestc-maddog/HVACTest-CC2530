@@ -1,5 +1,5 @@
 /**************************************************************************************************
-  Filename:       HVACQueen.h
+  Filename:       HVACTest.h
   Revised:        $Date: 2012-02-12 16:04:42 -0800 (Sun, 12 Feb 2012) $
   Revision:       $Revision: 29217 $
 
@@ -114,12 +114,12 @@ extern uint8 hvac_whiteList[HVAC_MAX_DRONE_NUM][Z_EXTADDR_LEN];
 /*
  * Task Initialization for the Generic Application
  */
-extern void HVACQueen_Init( byte task_id );
+extern void HVACTest_Init( byte task_id );
 
 /*
  * Task Event Processor for the Generic Application
  */
-extern UINT16 HVACQueen_ProcessEvent( byte task_id, UINT16 events );
+extern UINT16 HVACTest_ProcessEvent( byte task_id, UINT16 events );
 
 /*********************************************************************
 *********************************************************************/

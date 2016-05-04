@@ -302,10 +302,11 @@
         </option>
         <option>
           <name>CCDefines</name>
+          <state>HVAC_TEST</state>
           <state>HVAC_DRONE=FALSE</state>
           <state>HVAC_TEST</state>
           <state>HOLD_AUTO_START</state>
-          <state>xHVAC_WHITELIST</state>
+          <state>HVAC_WHITELIST</state>
           <state>xHVAC_KEY</state>
           <state>xWDT_IN_PM1</state>
           <state>HVACTest</state>

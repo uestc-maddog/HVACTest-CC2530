@@ -1,5 +1,5 @@
 /******************************************************************************
-  Filename:       HVACQueen.c
+  Filename:       HVACTest.c
   Revised:        $Date: 2014-09-07 13:36:30 -0700 (Sun, 07 Sep 2014) $
   Revision:       $Revision: 40046 $
 
@@ -111,6 +111,9 @@ LED:    LED3
 #define HVAC_STM32_RESET        false   
 #define HVAC_STM32_RECOVER      true
 
+#define HVACTEST_SELFCHECK      10      // 10s to setup network and allow 32 to perform a self-check
+#define HVACTEST_INFODISPLAY    5       // display information in 5s, then system reset
+   
 /*********************************************************************
  * CONSTANTS
  */
@@ -123,7 +126,7 @@ LED:    LED3
  * GLOBAL VARIABLES
  */
 // This list should be filled with Application specific Cluster IDs.
-const cId_t HVACQueen_ClusterList[HVACQUEEN_MAX_CLUSTERS] =
+const cId_t HVACTest_ClusterList[HVACQUEEN_MAX_CLUSTERS] =
 {
   HVACQUEEN_TRS_SEND_CLUSTERID,
   HVACQUEEN_ALIVE_CLUSTERID,
@@ -133,7 +136,7 @@ const cId_t HVACQueen_ClusterList[HVACQUEEN_MAX_CLUSTERS] =
   HVACQUEEN_REMOTEACK
 };
 
-const SimpleDescriptionFormat_t HVACQueen_SimpleDesc =
+const SimpleDescriptionFormat_t HVACTest_SimpleDesc =
 {
   HVACQUEEN_ENDPOINT,              //  int Endpoint;
   HVACQUEEN_PROFID,                //  uint16 AppProfId[2];
@@ -141,16 +144,16 @@ const SimpleDescriptionFormat_t HVACQueen_SimpleDesc =
   HVACQUEEN_DEVICE_VERSION,        //  int   AppDevVer:4;
   HVACQUEEN_FLAGS,                 //  int   AppFlags:4;
   HVACQUEEN_MAX_CLUSTERS,          //  byte  AppNumInClusters;
-  (cId_t *)HVACQueen_ClusterList,  //  byte *pAppInClusterList;
+  (cId_t *)HVACTest_ClusterList,  //  byte *pAppInClusterList;
   HVACQUEEN_MAX_CLUSTERS,          //  byte  AppNumInClusters;
-  (cId_t *)HVACQueen_ClusterList   //  byte *pAppInClusterList;
+  (cId_t *)HVACTest_ClusterList   //  byte *pAppInClusterList;
 };
 
 // This is the Endpoint/Interface description.  It is defined here, but
-// filled-in in HVACQueen_Init().  Another way to go would be to fill
+// filled-in in HVACTest_Init().  Another way to go would be to fill
 // in the structure here and make it a "const" (in code space).  The
 // way it's defined in this sample app it is define in RAM.
-endPointDesc_t HVACQueen_epDesc;
+endPointDesc_t HVACTest_epDesc;
 
 /*********************************************************************
  * EXTERNAL VARIABLES
@@ -166,25 +169,42 @@ uint8 hvac_whiteList[HVAC_MAX_DRONE_NUM][Z_EXTADDR_LEN] = {0};
 /*********************************************************************
  * LOCAL VARIABLES
  */
-byte HVACQueen_TaskID;   // Task ID for internal task/event processing
+byte HVACTest_TaskID;   // Task ID for internal task/event processing
                           // This variable will be received when
-                          // HVACQueen_Init() is called.
+                          // HVACTest_Init() is called.
 
-devStates_t HVACQueen_NwkState;
+devStates_t HVACTest_NwkState;
 
-byte HVACQueen_TransID;  // This is the unique message ID (counter)
+byte HVACTest_TransID;  // This is the unique message ID (counter)
 
-afAddrType_t HVACQueen_DstAddr;
+afAddrType_t HVACTest_DstAddr;
+
+typedef enum
+{
+  CC2530_INIT,
+  STM32_NORMAL,
+  HAS_ZIGBEE_NETWORK,
+  NO_ZIGBEE_NETWORK,
+  NO_FLASH,
+  NO_ADC,
+  NO_HUAWEI,
+  NO_STM32
+}hvac_test_error_t;
+
+// special for test code
+hvac_test_error_t HVACTest_errorcode = CC2530_INIT;
+uint8 test_counter = HVACTEST_SELFCHECK;
+uint8 test_infodisplay = false;
 
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
 #if defined( IAR_ARMCM3_LM )
-static void HVACQueen_ProcessRtosMessage( void );
+static void HVACTest_ProcessRtosMessage( void );
 #endif
 
 // UART handler functions
-static void hvacUART_PTL0_PING( void );
+static void hvacUART_PTL0_PING( hvac_test_error_t );
 
 // Reset Control
 static void hvac_STM32ResetInit( void );
@@ -194,9 +214,8 @@ static void hvac_STM32ResetInit( void );
 static void appForceBoot(void);
 #endif
 
-
 #ifdef HAL_UART
-static void HVACQueen_HandleUart (mtOSALSerialData_t *pMsg);
+static void HVACTest_HandleUart (mtOSALSerialData_t *pMsg);
 #endif
 
 
@@ -221,7 +240,7 @@ const __code uint8 chip_version = 1;
  */
 
 /*********************************************************************
- * @fn      HVACQueen_Init
+ * @fn      HVACTest_Init
  *
  * @brief   Initialization function for the Generic App Task.
  *          This is called during initialization and should contain
@@ -234,11 +253,11 @@ const __code uint8 chip_version = 1;
  *
  * @return  none
  */
-void HVACQueen_Init( uint8 task_id )
+void HVACTest_Init( uint8 task_id )
 {
-  HVACQueen_TaskID = task_id;
-  HVACQueen_NwkState = DEV_INIT;
-  HVACQueen_TransID = 0;
+  HVACTest_TaskID = task_id;
+  HVACTest_NwkState = DEV_INIT;
+  HVACTest_TransID = 0;
   uint8 initVersion = 0;
   uint8 startupMsg[4] = {0xFF,0xFF,0,0};
 
@@ -252,26 +271,26 @@ void HVACQueen_Init( uint8 task_id )
   hvac_STM32ResetInit();
   // Register UART, init UART
   MT_UartInit ();
-  MT_UartRegisterTaskID (HVACQueen_TaskID);
+  MT_UartRegisterTaskID (HVACTest_TaskID);
   
-  HVACQueen_DstAddr.addrMode = (afAddrMode_t)AddrNotPresent;
-  HVACQueen_DstAddr.endPoint = HVACQUEEN_ENDPOINT;
-  HVACQueen_DstAddr.addr.shortAddr = 0;
+  HVACTest_DstAddr.addrMode = (afAddrMode_t)AddrNotPresent;
+  HVACTest_DstAddr.endPoint = HVACQUEEN_ENDPOINT;
+  HVACTest_DstAddr.addr.shortAddr = 0;
 
   // Fill out the endpoint description.
-  HVACQueen_epDesc.endPoint = HVACQUEEN_ENDPOINT;
-  HVACQueen_epDesc.task_id = &HVACQueen_TaskID;
-  HVACQueen_epDesc.simpleDesc
-            = (SimpleDescriptionFormat_t *)&HVACQueen_SimpleDesc;
-  HVACQueen_epDesc.latencyReq = noLatencyReqs;
+  HVACTest_epDesc.endPoint = HVACQUEEN_ENDPOINT;
+  HVACTest_epDesc.task_id = &HVACTest_TaskID;
+  HVACTest_epDesc.simpleDesc
+            = (SimpleDescriptionFormat_t *)&HVACTest_SimpleDesc;
+  HVACTest_epDesc.latencyReq = noLatencyReqs;
 
   // Register the endpoint description with the AF
-  afRegister( &HVACQueen_epDesc );
+  afRegister( &HVACTest_epDesc );
   
   // Register ZDO Message
-  ZDO_RegisterForZDOMsg( HVACQueen_TaskID, Device_annce );
-  ZDO_RegisterForZDOMsg( HVACQueen_TaskID, End_Device_Bind_rsp );
-  ZDO_RegisterForZDOMsg( HVACQueen_TaskID, Match_Desc_rsp );
+  ZDO_RegisterForZDOMsg( HVACTest_TaskID, Device_annce );
+  ZDO_RegisterForZDOMsg( HVACTest_TaskID, End_Device_Bind_rsp );
+  ZDO_RegisterForZDOMsg( HVACTest_TaskID, Match_Desc_rsp );
 
   // Init critical resource
   ptl0_initPTL0Status();
@@ -286,50 +305,8 @@ void HVACQueen_Init( uint8 task_id )
   //
   // The forth byte is the firmware version
   
-// Test program, no need this white list
-/* 
-#ifdef HVAC_WHITELIST  
-  // init flash items
-  osal_nv_item_init(HVAC_VALIDFLASH_ITEM, 1, NULL);
-  osal_nv_item_init(HVAC_MACANUM_ITEM, 1, NULL);
-  osal_nv_item_init(HVAC_MACADDRESS_ITEM, HVAC_MAC_FLAHS_MAXLEN, NULL);
-  osal_nv_item_init(HVAC_NETWORKADDR_ITEM, HVAC_NET_FLAHS_MAXLEN, NULL);
-  
-  osal_nv_read(HVAC_VALIDFLASH_ITEM, 0, 1, &hvacMACADDRValid);
-  
-  if(hvacMACADDRValid != HVAC_MAC_FLASH_VALID)
-  {
-    hvacMACADDRValid = HVAC_MAC_FLASH_INVALID; 
-  }
-  // value valid, read mac number to RAM.
-  else
-  {
-    osal_nv_read(HVAC_MACANUM_ITEM, 0, 1, &hvacMACADDRNum);
-    // send valid flash startup mag
-    startupMsg[2] = 0xFF;
-    
-    // configure white table
-    osal_nv_read(HVAC_MACADDRESS_ITEM, 0
-                 , (hvacMACADDRNum * Z_EXTADDR_LEN), hvac_whiteList);
-    // configure network table 
-    osal_nv_read(HVAC_NETWORKADDR_ITEM, 0
-                 , (hvacMACADDRNum * 2), hvac_nwkAddr);
-    
-    // start cc2530 network
-    ZDOInitDevice(0);
-    // set mac address available
-    hvacMACAvailable = true;
-  }
-#else
-  // by pass the MAC validation
-  hvacMACADDRValid = HVAC_MAC_FLASH_VALID;
-  
-  // start cc2530 network
-  ZDOInitDevice(0);
-  // set mac address available
-  hvacMACAvailable = true;
-#endif
-*/  
+// Test program, no need init white list
+// However, to disable any device to join, enable the empty white list function
   
   // Add firmware version
   startupMsg[3] = firm_version;
@@ -349,14 +326,14 @@ void HVACQueen_Init( uint8 task_id )
   ZDOInitDevice(0);
  
   // Init timer
-  osal_start_timerEx( HVACQueen_TaskID,
+  osal_start_timerEx( HVACTest_TaskID,
                HVAC_PTL0_GUT_EVT,
                HVAC_PTL0_FAIL_TIMEOUT );
   
   // WDT
 #ifdef WDT_IN_PM1
   // Start WDT reset timer
-  osal_start_timerEx( HVACQueen_TaskID,
+  osal_start_timerEx( HVACTest_TaskID,
                       HVAC_WDT_CLEAR_EVT,
                       HVAC_WDT_CLEAR_TIMEOUT ); 
 #endif
@@ -368,7 +345,7 @@ void HVACQueen_Init( uint8 task_id )
 }
 
 /*********************************************************************
- * @fn      HVACQueen_ProcessEvent
+ * @fn      HVACTest_ProcessEvent
  *
  * @brief   Generic Application Task event processor.  This function
  *          is called to process all events for the task.  Events
@@ -380,7 +357,7 @@ void HVACQueen_Init( uint8 task_id )
  *
  * @return  none
  */
-uint16 HVACQueen_ProcessEvent( uint8 task_id, uint16 events )
+uint16 HVACTest_ProcessEvent( uint8 task_id, uint16 events )
 {
   afIncomingMSGPacket_t *MSGpkt;
 
@@ -388,7 +365,7 @@ uint16 HVACQueen_ProcessEvent( uint8 task_id, uint16 events )
 
   if ( events & SYS_EVENT_MSG )
   {
-    MSGpkt = (afIncomingMSGPacket_t *)osal_msg_receive( HVACQueen_TaskID );
+    MSGpkt = (afIncomingMSGPacket_t *)osal_msg_receive( HVACTest_TaskID );
     while ( MSGpkt )
     {
       switch ( MSGpkt->hdr.event )
@@ -398,17 +375,18 @@ uint16 HVACQueen_ProcessEvent( uint8 task_id, uint16 events )
 
         case CMD_SERIAL_MSG:
           // UART data, uart handler
-          HVACQueen_HandleUart ((mtOSALSerialData_t *)MSGpkt);
+          HVACTest_HandleUart ((mtOSALSerialData_t *)MSGpkt);
           break;
           
         case ZDO_STATE_CHANGE:
-          HVACQueen_NwkState = (devStates_t)(MSGpkt->hdr.status);
-          if ( (HVACQueen_NwkState == DEV_ZB_COORD) ||
-               (HVACQueen_NwkState == DEV_ROUTER) ||
-               (HVACQueen_NwkState == DEV_END_DEVICE) )
+          HVACTest_NwkState = (devStates_t)(MSGpkt->hdr.status);
+          if ( (HVACTest_NwkState == DEV_ZB_COORD) ||
+               (HVACTest_NwkState == DEV_ROUTER) ||
+               (HVACTest_NwkState == DEV_END_DEVICE) )
           {
             // Change to a known device type
-            // Do nothing now, CC2530 will upload everything.
+            if (HVACTest_errorcode == STM32_NORMAL )
+              HVACTest_errorcode = HAS_ZIGBEE_NETWORK;
           }
           
           // State change. Report STM32. Report everything for now.
@@ -427,7 +405,7 @@ uint16 HVACQueen_ProcessEvent( uint8 task_id, uint16 events )
           ptl0_uploadMsg(outGoing_ptl0locUpdate
                          ,outGoing_ptl0locUpdate.datapointer
                          ,outGoing_ptl0locUpdate.length
-                         ,HVACQueen_TaskID);   
+                         ,HVACTest_TaskID);   
           break;
 
         default:
@@ -438,7 +416,7 @@ uint16 HVACQueen_ProcessEvent( uint8 task_id, uint16 events )
       osal_msg_deallocate( (uint8 *)MSGpkt );
 
       // Next
-      MSGpkt = (afIncomingMSGPacket_t *)osal_msg_receive( HVACQueen_TaskID );
+      MSGpkt = (afIncomingMSGPacket_t *)osal_msg_receive( HVACTest_TaskID );
     }
 
     // return unprocessed events
@@ -446,12 +424,52 @@ uint16 HVACQueen_ProcessEvent( uint8 task_id, uint16 events )
   }
 
   // Event handler timer, 1s timer
-  if (events & HVACPTL0_EVENT_TIMEOUT_EVT )
+  if (events & HVAC_PTL0_GUT_EVT )
   {
-    // call event timer service function
-    ptl0_eventTimerService(HVACQueen_TaskID
-                           ,HVACPTL0_EVENT_TIMEOUT_EVT);
-                                 
+    // Timer event. Not GUT function
+    test_counter --;
+    
+    if(!test_counter)
+    {
+      if (!test_infodisplay)
+      {
+        // check process finish, flash LED according to the check result
+        test_counter = HVACTEST_INFODISPLAY; // display information for HVACTEST_INFODISPLAYs, then reset
+        
+        test_infodisplay = true;        // ready to display information
+        
+        // display LED according to HVACTest_errorcode
+        switch(HVACTest_errorcode)
+        {
+          case STM32_NORMAL:
+            // display NORMAL, STM32 was good, but no ZIGBEE netowk
+            break;
+           
+          case HAS_ZIGBEE_NETWORK:
+            // all good
+            break;
+            
+          case NO_FLASH:
+            // STM32 fail to detect a flash
+            break;
+            
+          case NO_ADC:
+            // STM32 ADC fail
+            break;
+            
+          case NO_HUAWEI:
+            // STM32 no HUAWEI
+            break;
+            
+          case CC2530_INIT:
+            // no STM32 detected
+            break;
+        }
+      }
+      else
+        ptl0_sendACK(); // display finish, send ACK to STM32 and 32 will reset
+    }
+    
     return ( events ^ HVACPTL0_EVENT_TIMEOUT_EVT ); 
   }  
 
@@ -464,26 +482,14 @@ uint16 HVACQueen_ProcessEvent( uint8 task_id, uint16 events )
     WDCTL |= WDCLP2;
        
     // reload timer 
-    osal_start_timerEx( HVACQueen_TaskID,
+    osal_start_timerEx( HVACTest_TaskID,
                         HVAC_WDT_CLEAR_EVT,
                         HVAC_WDT_CLEAR_TIMEOUT ); 
     
     return (events ^ HVAC_WDT_CLEAR_EVT);
   }
 #endif  
-  
-#if defined( IAR_ARMCM3_LM )
-  // Receive a message from the RTOS queue
-  if ( events & HVACQUEEN_RTOS_MSG_EVT )
-  {
-    // Process message from RTOS queue
-    HVACQueen_ProcessRtosMessage();
-
-    // return unprocessed events
-    return (events ^ HVACQUEEN_RTOS_MSG_EVT);
-  }
-#endif
-
+ 
   // Discard unknown events
   return 0;
 }
@@ -497,7 +503,7 @@ uint16 HVACQueen_ProcessEvent( uint8 task_id, uint16 events )
  */
 
 /*********************************************************************
- * @fn      HVACQueen_HandleUart
+ * @fn      HVACTest_HandleUart
  *
  * @brief   Handles all UART events for this device.
  *
@@ -512,7 +518,7 @@ uint16 HVACQueen_ProcessEvent( uint8 task_id, uint16 events )
  *
  * @return  none
  */
-static void HVACQueen_HandleUart (mtOSALSerialData_t *pMsg) 
+static void HVACTest_HandleUart (mtOSALSerialData_t *pMsg) 
 {
   PTL0_InitTypeDef inComing_ptl0;
   
@@ -534,7 +540,7 @@ static void HVACQueen_HandleUart (mtOSALSerialData_t *pMsg)
   { 
     case PTL0_PING:
       // Ping command, send ack
-      hvacUART_PTL0_PING();
+      hvacUART_PTL0_PING((hvac_test_error_t)inComing_ptl0.CMD2);
       break;
   }
 }
@@ -548,20 +554,17 @@ static void HVACQueen_HandleUart (mtOSALSerialData_t *pMsg)
  *
  * @return  none
  */
-static void hvacUART_PTL0_PING( void )
+static void hvacUART_PTL0_PING( hvac_test_error_t CMD2 )
 { 
-  // If PTL0 idle, send ACK
-  if(ptl0_queryStat() == PTL0_STA_IDLE)
-  {
-    // update PTL0 status
-    ptl0_updateStat(PTL0_STA_PING_REC);
+  // Do not check available, handle directly
   
-    // send ACK
-    ptl0_sendACK();
-    
-    // back to idle
-    ptl0_updateStat(PTL0_STA_IDLE);
-  }
+  // update error code according to test result
+  HVACTest_errorcode = CMD2;
+  
+  // do not send ACK here, send ACK while finish display information
+
+  // back to idle
+  ptl0_updateStat(PTL0_STA_IDLE);
 }
 
 /*********************************************************************

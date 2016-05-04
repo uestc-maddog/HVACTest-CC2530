@@ -1,5 +1,5 @@
 /**************************************************************************************************
-  Filename:       OSAL_HVACQueen.c
+  Filename:       OSAL_HVACTest.c
   Revised:        $Date: 2008-02-07 12:10:00 -0800 (Thu, 07 Feb 2008) $
   Revision:       $Revision: 16360 $
 
@@ -84,7 +84,7 @@ const pTaskEventHandlerFn tasksArr[] = {
 #if defined ( ZIGBEE_FREQ_AGILITY ) || defined ( ZIGBEE_PANID_CONFLICT )
   ZDNwkMgr_event_loop,
 #endif
-  HVACQueen_ProcessEvent
+  HVACTest_ProcessEvent
 };
 
 const uint8 tasksCnt = sizeof( tasksArr ) / sizeof( tasksArr[0] );
@@ -124,7 +124,7 @@ void osalInitTasks( void )
 #if defined ( ZIGBEE_FREQ_AGILITY ) || defined ( ZIGBEE_PANID_CONFLICT )
   ZDNwkMgr_Init( taskID++ );
 #endif
-  HVACQueen_Init( taskID );
+  HVACTest_Init( taskID );
 }
 
 /*********************************************************************
