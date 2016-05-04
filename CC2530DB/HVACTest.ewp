@@ -304,10 +304,8 @@
           <name>CCDefines</name>
           <state>HVAC_DRONE=FALSE</state>
           <state>HVAC_TEST</state>
-          <state>ZDO_MGMT_LEAVE_RESPONSE=TRUE</state>
-          <state>ZDO_MGMT_LEAVE_REQUEST=TRUE</state>
           <state>HOLD_AUTO_START</state>
-          <state>XHVAC_WHITELIST</state>
+          <state>xHVAC_WHITELIST</state>
           <state>xHVAC_KEY</state>
           <state>xWDT_IN_PM1</state>
           <state>HVACTest</state>
@@ -315,8 +313,8 @@
           <state>HAL_UART=TRUE</state>
           <state>ZIGBEEPRO</state>
           <state>NWK_AUTO_POLL</state>
-          <state>NV_INIT</state>
-          <state>NV_RESTORE</state>
+          <state>xNV_INIT</state>
+          <state>xNV_RESTORE</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -397,7 +395,7 @@
         <option>
           <name>CCAllowList</name>
           <version>1</version>
-          <state>00000</state>
+          <state>11111</state>
         </option>
         <option>
           <name>CCObjUseModuleName</name>
@@ -528,7 +526,7 @@
         </option>
         <option>
           <name>CCOptLevel</name>
-          <state>0</state>
+          <state>3</state>
         </option>
         <option>
           <name>CCOptStrategy</name>
@@ -537,7 +535,7 @@
         </option>
         <option>
           <name>CCOptLevelSlave</name>
-          <state>0</state>
+          <state>3</state>
         </option>
         <option>
           <name>CompilerMisraRules04</name>
