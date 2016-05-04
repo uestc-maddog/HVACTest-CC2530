@@ -111,8 +111,8 @@ LED:    LED3
 #define HVAC_STM32_RESET        false   
 #define HVAC_STM32_RECOVER      true
 
-#define HVACTEST_SELFCHECK      10      // 10s to setup network and allow 32 to perform a self-check
-#define HVACTEST_INFODISPLAY    5       // display information in 5s, then system reset
+#define HVACTEST_SELFCHECK      5      // 10s to setup network and allow 32 to perform a self-check
+#define HVACTEST_INFODISPLAY    10     // display information in 5s, then system reset
    
 /*********************************************************************
  * CONSTANTS
@@ -392,20 +392,7 @@ uint16 HVACTest_ProcessEvent( uint8 task_id, uint16 events )
           // State change. Report STM32. Report everything for now.
           // Need to consider!!!!!!!!!!!!!!
           PTL0_InitTypeDef outGoing_ptl0locUpdate;
-          
-          // configure error code
-          outGoing_ptl0locUpdate.CMD1 = PTL0_LOC_STATUS_RP;
-          outGoing_ptl0locUpdate.CMD2 = PTL0_LOC_STATUS_RP_NWK_CHG;
-          outGoing_ptl0locUpdate.length = 1;
-          outGoing_ptl0locUpdate.SOF = PTL0_SOF;
-          outGoing_ptl0locUpdate.version = PTL0_FRAMEVER;
-          outGoing_ptl0locUpdate.datapointer = &(MSGpkt->hdr.status);
-          
-          // upload Msg
-          ptl0_uploadMsg(outGoing_ptl0locUpdate
-                         ,outGoing_ptl0locUpdate.datapointer
-                         ,outGoing_ptl0locUpdate.length
-                         ,HVACTest_TaskID);   
+           
           break;
 
         default:
@@ -475,8 +462,13 @@ uint16 HVACTest_ProcessEvent( uint8 task_id, uint16 events )
       else
         ptl0_sendACK(); // display finish, send ACK to STM32 and 32 will reset
     }
+
+      // Init timer
+    osal_start_timerEx( HVACTest_TaskID,
+               HVAC_PTL0_GUT_EVT,
+               HVAC_PTL0_FAIL_TIMEOUT );
     
-    return ( events ^ HVACPTL0_EVENT_TIMEOUT_EVT ); 
+    return ( events ^ HVAC_PTL0_GUT_EVT ); 
   }  
 
 #ifdef WDT_IN_PM1
