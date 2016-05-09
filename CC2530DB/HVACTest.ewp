@@ -302,7 +302,6 @@
         </option>
         <option>
           <name>CCDefines</name>
-          <state>HVAC_TEST</state>
           <state>HVAC_DRONE=FALSE</state>
           <state>HVAC_TEST</state>
           <state>HOLD_AUTO_START</state>
@@ -770,11 +769,11 @@
         </option>
         <option>
           <name>XOutOverride</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>OutputFile</name>
-          <state>HVACTest.d51</state>
+          <state>HVACTest.hex</state>
         </option>
         <option>
           <name>OutputFormat</name>
@@ -948,7 +947,7 @@
         </option>
         <option>
           <name>DebugInformation</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>RuntimeControl</name>

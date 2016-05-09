@@ -430,7 +430,7 @@ uint16 HVACTest_ProcessEvent( uint8 task_id, uint16 events )
         {
           case STM32_NORMAL:
             // display NORMAL, STM32 was good, but no ZIGBEE netowk
-            HalLedBlink (HAL_LED_3, 200, 30, 1000);
+            HalLedBlink (HAL_LED_3, 200, 15, 1000);
             break;
            
           case HAS_ZIGBEE_NETWORK:
@@ -440,12 +440,12 @@ uint16 HVACTest_ProcessEvent( uint8 task_id, uint16 events )
             
           case NO_FLASH:
             // STM32 fail to detect a flash
-            HalLedBlink (HAL_LED_3, 200, 30, 2000);
+            HalLedBlink (HAL_LED_3, 200, 15, 2000);
             break;
             
           case NO_ADC:
             // STM32 ADC fail
-            HalLedBlink (HAL_LED_3, 200, 70, 2000);
+            HalLedBlink (HAL_LED_3, 200, 85, 2000);
             break;
             
           case NO_HUAWEI:
@@ -455,7 +455,7 @@ uint16 HVACTest_ProcessEvent( uint8 task_id, uint16 events )
             
           case CC2530_INIT:
             // no STM32 detected
-            HalLedBlink (HAL_LED_3, 200, 70, 1000);
+            HalLedBlink (HAL_LED_3, 200, 85, 1000);
             break;
         }
       }
